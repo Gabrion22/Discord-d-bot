@@ -6,13 +6,18 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const CHANNEL_ID = process.env.DEALS_CHANNEL_ID;
 const INTERVAL_MIN = Number(process.env.SCAN_INTERVAL_MINUTES || 10);
-const DISABLE_EBAY = String(process.env.DISABLE_EBAY || "false") === "true";
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
 const WATCHLIST = (process.env.WATCHLIST || "")
   .split("|")
   .map(s => s.trim())
   .filter(Boolean);
+
+function keepAlive() {
+  setInterval(() => {
+    console.log("Heartbeat: process alive");
+  }, 30_000);
+}
 
 async function searchWalmart(query) {
   const url = new URL("https://serpapi.com/search.json");
@@ -21,29 +26,42 @@ async function searchWalmart(query) {
   url.searchParams.set("api_key", SERPAPI_KEY);
 
   const res = await fetch(url);
-  if (!res.ok) return [];
+  const json = await res.json().catch(() => ({}));
 
-  const json = await res.json();
-  const items = json.organic_results || json.shopping_results || [];
+  const items = (json.organic_results || json.shopping_results || [])
+    .slice(0, 2)
+    .map(it => ({
+      title: it.title,
+      price: it.extracted_price || it.price,
+      link: it.link
+    }))
+    .filter(x => x.title && x.link);
 
-  return items.slice(0, 3).map(it => ({
-    title: it.title,
-    price: it.price || it.extracted_price,
-    link: it.link
-  })).filter(x => x.title && x.price && x.link);
+  return items;
 }
 
 async function scanOnce() {
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
-  if (!channel) return;
+  if (!channel) {
+    console.error("Invalid channel ID");
+    return;
+  }
 
-  for (const q of WATCHLIST) {
+  await channel.send(`🟢 Walmart scan running (${new Date().toLocaleTimeString()})`);
+
+  for (const q of WATCHLIST.slice(0, 3)) {
     const results = await searchWalmart(q);
+
+    if (!results.length) {
+      await channel.send(`🔍 ${q}: no results`);
+      continue;
+    }
+
     for (const r of results) {
       await channel.send(
-        `🛒 **WALMART ITEM FOUND**\n` +
+        `🛒 **WALMART ITEM**\n` +
         `**${r.title}**\n` +
-        `Price: **$${r.price}**\n` +
+        (r.price ? `Price: $${r.price}\n` : "") +
         `${r.link}`
       );
     }
@@ -52,7 +70,10 @@ async function scanOnce() {
 
 client.once("ready", async () => {
   console.log("Bot online");
-  await scanOnce();
+
+  keepAlive();              // 🔒 keeps Railway alive
+  await scanOnce();         // run immediately
+
   setInterval(scanOnce, INTERVAL_MIN * 60 * 1000);
 });
 
