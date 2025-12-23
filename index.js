@@ -12,10 +12,6 @@ const WATCHLIST = (process.env.WATCHLIST || "")
   .split("|")
   .map(s => s.trim())
   .filter(Boolean);
-const WATCHLIST = (process.env.WATCHLIST || "")
-  .split("|")
-  .map(s => s.trim())
-  .filter(Boolean);
 function expandQuery(q) {
   const map = {
     pokemon: [
