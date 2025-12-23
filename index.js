@@ -12,7 +12,90 @@ const WATCHLIST = (process.env.WATCHLIST || "")
   .split("|")
   .map(s => s.trim())
   .filter(Boolean);
+const WATCHLIST = (process.env.WATCHLIST || "")
+  .split("|")
+  .map(s => s.trim())
+  .filter(Boolean);
+function expandQuery(q) {
+  const map = {
+    pokemon: [
+      "pokemon cards",
+      "pokemon booster box",
+      "pokemon elite trainer box",
+      "pokemon tcg"
+    ],
+    "one piece": [
+      "one piece tcg",
+      "one piece booster box",
+      "one piece cards"
+    ],
+    lego: [
+      "lego star wars",
+      "lego set",
+      "lego technic"
+    ],
+    milwaukee: [
+      "milwaukee m18",
+      "milwaukee fuel",
+      "milwaukee power tools"
+    ],
+    dewalt: [
+      "dewalt 20v",
+      "dewalt power tools"
+    ],
+    makita: [
+      "makita 18v",
+      "makita power tools"
+    ],
+    nintendo: [
+      "nintendo switch",
+      "switch console"
+    ],
+    playstation: [
+      "ps5 console",
+      "ps5 controller"
+    ],
+    xbox: [
+      "xbox series x",
+      "xbox controller"
+    ],
+    gpu: [
+      "graphics card",
+      "rtx graphics card"
+    ],
+    rtx: [
+      "rtx 3060",
+      "rtx 3070",
+      "rtx graphics card"
+    ],
+    iphone: [
+      "iphone unlocked",
+      "iphone refurbished"
+    ],
+    ipad: [
+      "ipad tablet",
+      "ipad wifi"
+    ],
+    "apple watch": [
+      "apple watch series",
+      "apple watch se"
+    ],
+    dyson: [
+      "dyson vacuum",
+      "dyson cordless vacuum"
+    ],
+    roomba: [
+      "irobot roomba",
+      "robot vacuum"
+    ],
+    kitchenaid: [
+      "kitchenaid mixer",
+      "stand mixer"
+    ]
+  };
 
+  return map[q.toLowerCase()] || [q];
+}
 function keepAlive() {
   setInterval(() => {
     console.log("Heartbeat: process alive");
@@ -50,23 +133,27 @@ async function scanOnce() {
   await channel.send(`🟢 Walmart scan running (${new Date().toLocaleTimeString()})`);
 
   for (const q of WATCHLIST.slice(0, 3)) {
-    const results = await searchWalmart(q);
+  let allResults = [];
 
-    if (!results.length) {
-      await channel.send(`🔍 ${q}: no results`);
-      continue;
-    }
-
-    for (const r of results) {
-      await channel.send(
-        `🛒 **WALMART ITEM**\n` +
-        `**${r.title}**\n` +
-        (r.price ? `Price: $${r.price}\n` : "") +
-        `${r.link}`
-      );
-    }
+  for (const term of expandQuery(q)) {
+    const res = await searchWalmart(term);
+    allResults.push(...res);
   }
-}
+
+  if (!allResults.length) {
+    await channel.send(`🔍 ${q}: no results (expanded search)`);
+    continue;
+  }
+
+  for (const r of allResults.slice(0, 10)) {
+    await channel.send(
+      `🛒 **WALMART ITEM**\n` +
+      `**${r.title}**\n` +
+      (r.price ? `Price: $${r.price}\n` : "") +
+      `${r.link}`
+    );
+  }
+  }
 
 client.once("ready", async () => {
   console.log("Bot online");
